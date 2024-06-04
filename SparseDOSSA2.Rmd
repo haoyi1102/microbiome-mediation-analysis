@@ -54,6 +54,9 @@ head(Stool_simulation$simulated_matrices$a_null)
 head(Stool_simulation$simulated_matrices$a_spiked)
 # Relative abundace
 head(Stool_simulation$simulated_matrices$rel)
+
+
+
 ```
 
 params
