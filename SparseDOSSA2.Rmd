@@ -24,16 +24,29 @@ library(SparseDOSSA2)
 library(magrittr)
 library(dplyr)
 library(ggplot2)
-
+?fit_SparseDOSSA2
+? control_fit
 # Using the pre-trained dataset for "Stool"
-Stool_simulation <- SparseDOSSA2(template = "Stool",  # choose from "Stool", "Vaginal" or "IBD"
+?SparseDOSSA2
+?spike
+Stool_simulation <- SparseDOSSA2(template = "IBD",  # choose from "Stool", "Vaginal" or "IBD"
                                  new_features = TRUE,  # should new features be simulated
                                  n_sample = 100,  # number of samples to simulate
                                  n_feature = 100,  # number of features to simulate (when 'new_features = TRUE')
                                  verbose = TRUE)  # return detailed info
-
+result = Stool_simulation$simulated_data
 #str(Stool_simulation)
 ```
+
+```{r}
+sim <- SparseDOSSA2(template = "Stool", n_sample = 200, new_features = FALSE)
+## Using user-provided trained SparseDOSSA2 model:
+data("Stool_subset")
+fitted <- fit_SparseDOSSA(data = Stool_subset)
+sim <- SparseDOSSA2(template = fitted, n_sample = 200, new_features = FALSE)
+```
+
+
 simulated_data
 ```{r}
 dim(Stool_simulation$simulated_data)
