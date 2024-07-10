@@ -7,34 +7,59 @@ library(magrittr)
 library(dplyr)
 library(ggplot2)
 
+
+data("Stool_subset")
+Stool_subset[3,2]<-1678541
+Stool_subset[4,2]<-2056565
+Stool_subset[4,4]<-125656
+IBD <- fit_SparseDOSSA2(lambda = 1,data = Stool_subset)
+?fit_SparseDOSSA2
+?control_fit
 # 设置模拟参数
 template <- "Stool"  # 使用预训练的Stool模板
 n_sample <- 100  # 生成100个样本
 n_feature <- 10  # 每个样本100个特征
-metadata_effect_size <- 1  # 设置metadata影响大小
+metadata_effect_size <- 10  # 设置metadata影响大小
 perc_feature_spiked_metadata <- 0.1  # 10%的特征与metadata相关联
 
 # 生成处理组metadata矩阵
-set.seed(123)
+# set.seed(1256)
 metadata <- data.frame(treatment = rep(c("Control", "Treatment"), each = 50))
 
 # 将metadata转换为模型矩阵
 metadata_matrix <- model.matrix(~ treatment - 1, data = metadata)
 
 # 生成合成数据
+
 sim_data <- SparseDOSSA2(template = template, 
                          n_sample = n_sample, 
                          n_feature = n_feature,
                          spike_metadata = "abundance", 
                          metadata_effect_size = metadata_effect_size,
                          perc_feature_spiked_metadata = perc_feature_spiked_metadata,
-                         metadata_matrix = metadata_matrix,  
+                         metadata_matrix = metadata_matrix,
+                         median_read_depth = 10000,  
                          verbose = TRUE)
 
 # 提取生成的计数数据
 synthetic_data <- sim_data$simulated_data
 generated_metadata <- sim_data$spike_metadata$metadata_matrix
 feature_metadata_spike_df <- sim_data$spike_metadata$feature_metadata_spike_df
+
+
+# zero_count <- sum(synthetic_data == 0)
+# print(paste("Zero count:", zero_count))
+# total_elements <- length(synthetic_data)
+# zero_proportion <- zero_count / total_elements
+# print(paste("Zero proportion:", zero_proportion))
+# 
+# ###
+# synthetic_data_matrix <- as.matrix(synthetic_data)
+# 
+# feature_variances <- apply(synthetic_data_matrix, 2, var)
+# 
+# print(mean(feature_variances)) #0多方差大
+
 
 # 将处理组变量转换为数值型：Control -> 0, Treatment -> 1
 metadata$treatment_numeric <- as.numeric(metadata$treatment == "Treatment")
@@ -65,7 +90,7 @@ for (i in 1:n_sample) {
 }
 
 # 查看生成的 outcome Y 值
-head(outcome_Y)
+
 
 write.csv(outcome_Y, file = "outcome.csv", row.names = FALSE)
 write.csv(synthetic_data, file = "mediator(absolute).csv", row.names = FALSE)
