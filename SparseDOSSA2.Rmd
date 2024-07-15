@@ -31,7 +31,7 @@ library(ggplot2)
 ?spike
 Stool_simulation <- SparseDOSSA2(template = "IBD",  # choose from "Stool", "Vaginal" or "IBD"
                                  new_features = TRUE,  # should new features be simulated
-                                 n_sample = 100,  # number of samples to simulate
+                                 n_sample = 500,  # number of samples to simulate
                                  n_feature = 100,  # number of features to simulate (when 'new_features = TRUE')
                                  verbose = TRUE)  # return detailed info
 result = Stool_simulation$simulated_data

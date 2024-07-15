@@ -1,15 +1,5 @@
 
-library(SparseDOSSA2)
-library(magrittr)
-library(dplyr)
-library(ggplot2)
 
-
-result <- generate_simulation_data(n_sample = 100, template = "Stool", n_feature = 20, 
-                                   metadata_effect_size = 1, perc_feature_spiked_metadata = 0.1, 
-                                   median_read_depth = 10000, alpha_0 = 1, alpha_T = 0.5, 
-                                   alpha_M_value = 0.2, noise_sd = 0.1)
-print(result)
 
 # data("Stool_subset")
 # Stool_subset[3,2]<-1678541
@@ -26,8 +16,8 @@ generate_simulation_data <- function(n_sample = 100, template = "Stool", n_featu
                                      alpha_M_value = 0.2, noise_sd = 0.1) {
 
 
-
-metadata <- data.frame(treatment = rep(c("Control", "Treatment"), each = 50))
+temp = n_sample/2
+metadata <- data.frame(treatment = rep(c("Control", "Treatment"), each = temp))
 metadata$treatment_binary <- ifelse(metadata$treatment == "Control", 0, 1)
 metadata_matrix <- as.matrix(metadata$treatment_binary)
 
@@ -55,7 +45,9 @@ generate_data <- function(seed) {
 # Run in a loop until successful
 sim_data <- NULL
 while(is.null(sim_data)) {
-  sim_data <- generate_data(seed = sample(1:10000, 1))
+  seed <- sample(1:10000, 1)
+  cat("Using seed:", seed, "\n")
+  sim_data <- generate_data(seed = seed)
 }
 
 # Extract generated count data
