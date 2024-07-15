@@ -18,7 +18,7 @@ source("data_generate_1.R")
 # # print(result)
 
 # Create a new directory to save the results
-output_dir <- "simulation_data_1"
+output_dir <- "simulation_data_2"
 if (!dir.exists(output_dir)) {
   dir.create(output_dir)
 }
