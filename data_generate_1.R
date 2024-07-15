@@ -137,7 +137,7 @@ for (i in 1:n_sample) {
 # Add noise term
 outcome_Y <- outcome_Y + rnorm(n_sample, mean = 0, sd = noise_sd)
 # Return the results
-list(T = metadata$treatment_numeric, Y = outcome_Y, absolute_M = synthetic_data, 
+list(T = metadata$treatment_numeric, Y = outcome_Y, absolute_M = synthetic_data, feature = feature_metadata_spike_df,
      zero_proportion = zero_proportion, mean_variance = mean_variance)
 }
 
