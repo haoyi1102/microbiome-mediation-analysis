@@ -53,6 +53,7 @@ Y_dist <- dist(Y_vector)
 M_dist <- dist(M_a_matrix)
 
 modima_result <- modima(T_dist, M_dist, Y_dist, nrep=999)
+modima_result$p.value
 print(modima_result)
 ## 数据是否compositional有显著影响 #数据是否0值影响不大
 
