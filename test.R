@@ -46,7 +46,7 @@ M_nz_matrix <- apply(M_matrix, 1, function(row) {
   return(row)
 })
 M_nz_matrix <- t(M_nz_matrix) #non-zero comp
-
+class(M_nz_matrix)
 ################ MODIMA
 T_dist <- dist(T_vector)
 Y_dist <- dist(Y_vector)
@@ -78,13 +78,30 @@ if (any(!is.finite(M_nz_matrix))) {
   stop("M_matrix contains non-finite values!")
 }
 res = SparseMCMM(T_vector, M_nz_matrix, Y_vector, n.split=1, num.per=200)
-print(res)
-
+ress = res$Test
+p_value = ress["OME"]
+# res = SparseMCMM(T_vector, M_nz_matrix, Y_vector, n.split=1, num.per=200)
+# > print(res)
+# $`Esitmated Causal Effects`
+# DE         ME         TE 
+# -0.5924898 -4.3311540 -4.9236438 
+# 
+# $`Compontent-wise ME`
+# taxon_1     taxon_2     taxon_3     taxon_4     taxon_5 
+# 0.05934267  1.24261963  0.01766287  0.29616179 -0.23424203 
+# taxon_6     taxon_7     taxon_8     taxon_9    taxon_10 
+# 0.34983561 -5.83868936 -0.02322553  0.43861452 -0.63923414 
+# 
+# $Test
+# OME       CME 
+# 0.1194030 0.1492537 
+# 
+# > 
 ############ CCMM
 #help(ccmm)
 result <- ccmm(Y_vector, M_nz_matrix, T_vector, x = NULL, w = NULL, method.est.cov = "bootstrap", n.boot = 2000,
      sig.level = 0.05, tol = 1e-06, max.iter = 5000)
-
+CI<-result$TIDE.CI
 print(result)
 
 ### ldm-med
@@ -95,10 +112,7 @@ result <- ldm(
   seed = 1234,
   test.mediation = TRUE
 )
-# 全局中介效应的p值
-print(result$med.p.global.omni)
-help(ldm)
-# 检测到的OTU的中介效应
+?ldm
 print(result$med.detected.otu.omni)
 
 ##### microbvs
