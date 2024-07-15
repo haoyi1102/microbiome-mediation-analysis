@@ -77,3 +77,9 @@ medtest_accuracy <- medtest_score / total_tests
 # Print results
 print(paste("MODIMA accuracy:", modima_accuracy))
 print(paste("MedOmniTest accuracy:", medtest_accuracy))
+
+# #> # Print results
+# > print(paste("MODIMA accuracy:", modima_accuracy))
+# [1] "MODIMA accuracy: 0.56"
+# > print(paste("MedOmniTest accuracy:", medtest_accuracy))
+# [1] "MedOmniTest accuracy: 0.38"
