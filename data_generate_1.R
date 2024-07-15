@@ -8,7 +8,7 @@
 # IBD <- fit_SparseDOSSA2(lambda = 1,data = Stool_subset)
 # ?fit_SparseDOSSA2
 # ?control_fit
-
+# ?SparseDOSSA2
 
 generate_simulation_data <- function(n_sample = 100, template = "Stool", n_feature = 20, 
                                      metadata_effect_size = 1, perc_feature_spiked_metadata = 0.1, 

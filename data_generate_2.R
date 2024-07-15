@@ -9,12 +9,16 @@ source("data_generate_1.R")
 
 
 # # Use the generate_simulation_data function with desired parameters
-# result <- generate_simulation_data(n_sample = 100, template = "Stool", n_feature = 20,
-#                                    metadata_effect_size = 1, perc_feature_spiked_metadata = 0.1,
-#                                    median_read_depth = 10000, alpha_0 = 1, alpha_T = 0.5,
-#                                    alpha_M_value = 0.2, noise_sd = 0.5)
-# z = result$absolute_M
-# zero_count <- rowSums(result$absolute_M == 0)
+#  result <- generate_simulation_data(n_sample = 100, template = "Stool", n_feature = 20,
+#                                     metadata_effect_size = 100, perc_feature_spiked_metadata = 1,
+#                                     median_read_depth = 10000, alpha_0 = 1, alpha_T = 0.5,
+#                                     alpha_M_value = 0.2, noise_sd = 0.5)
+#  z = result$absolute_M
+#  result$feature
+#  zero_count <- rowSums(result$absolute_M == 0)
+# zero_count
+# 直接拼数据可行 替换feature的时候要注意 是不是起作用的feature
+# 没有哪一个变量直接改变0 metadata_effect_size和perc_feature_spiked_metadata都不行
 # # 
 # # # Print the results
 # # print(result)
