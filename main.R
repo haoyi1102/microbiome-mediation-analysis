@@ -17,6 +17,9 @@ library(ccmm)
 library(LDM)
 #install_github( "mkoslovsky/MicroBVS")
 library(MicroBVS)
+#devtools::install_github("quranwu/MedZIM")
+library(MedZIM)
+
 set.seed(1234)
 # 读取数据
 Y <- read.csv("outcome.csv", header = TRUE)
@@ -29,7 +32,7 @@ feature <- read.csv("feature_metadata.csv", header = TRUE)
 Y_vector <- as.numeric(Y$x)  # 确保是数值型向量
 T_vector <- as.numeric(T)  # 转置并转换为向量
 M_a_matrix <- as.matrix(t(M_absolute))  # 确保是数值型矩阵 # ab
-
+colnames(M_a_matrix) <- paste0("taxon_", 1:ncol(M_a_matrix))
 M_matrix <- M_a_matrix / rowSums(M_a_matrix) # comp
 # pseudo_count <- 1e-5
 # temp_m <- M_a_matrix
@@ -47,7 +50,7 @@ M_nz_matrix <- t(M_nz_matrix) #non-zero comp
 ################ MODIMA
 T_dist <- dist(T_vector)
 Y_dist <- dist(Y_vector)
-M_dist <- dist(M_matrix)
+M_dist <- dist(M_a_matrix)
 
 modima_result <- modima(T_dist, M_dist, Y_dist, nrep=999)
 print(modima_result)
@@ -98,9 +101,38 @@ help(ldm)
 print(result$med.detected.otu.omni)
 
 ##### microbvs
-model_real <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_matrix, taxa = 1)
+model_real <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_matrix, taxa = 2)
 result_real <- Selection_Med1(model = model_real)
 
 result_global <- Selection_Med2(model = model_real)
 
 model_global <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_matrix, seed = 1234)
+
+##### MedZim
+
+#?MedZIM_func
+#?data_ZIM
+taxon_name <- "taxon_"
+
+
+libsize <- colSums(M_absolute)
+dat <- data.frame(Y_vector, T_vector, libsize)
+dat <- cbind(dat, M_matrix)
+results <- MedZIM_func(
+  dat = dat,
+  xVar = "T_vector",
+  yVar = "Y_vector",
+  taxon_name = taxon_name,
+  libSize_name = "libsize",
+  obs_gt_0 = 2,
+  obs_eq_0 = 2,
+  inter_x_mg0 = TRUE,
+  inter_x_m = FALSE,
+  eval.max = 200,
+  iter.max = 200,
+  x_from = 0,
+  x_to = 1,
+  type1error = 0.05,
+  paraJobs = 2
+)
+results$fullList$taxon_1
