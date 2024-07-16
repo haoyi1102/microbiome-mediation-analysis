@@ -19,6 +19,7 @@ library(LDM)
 library(MicroBVS)
 # devtools::install_github("quranwu/MedZIM")
 library(MedZIM)
+library(microHIMA)
 
 set.seed(1234)
 
@@ -64,14 +65,15 @@ calculate_metrics <- function(detected_indices, true_indices) {
        true_positives = true_positives, false_positives = false_positives, false_negatives = false_negatives)
 }
 
-# Initialize metrics for CCMM and LDM methods
+# Initialize metrics for CCMM, LDM, and HIMA methods
 metrics_ccmm <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0, false_positives = 0, false_negatives = 0)
 metrics_ldm <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0, false_positives = 0, false_negatives = 0)
+metrics_hima <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0, false_positives = 0, false_negatives = 0)
 
-# Loop through each result and apply CCMM and LDM methods
 # for (i in 1:length(simulation_results)) {
-  for (i in 1:10) {
-   # i=1
+# Loop through each result and apply CCMM, LDM, and HIMA methods
+for (i in 1:10) {
+  # i = 3
   result <- simulation_results[[i]]
   preprocessed_data <- preprocess_data(result)
   
@@ -96,6 +98,15 @@ metrics_ldm <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0,
   )
   detected_otus_ldm <- as.numeric(gsub("taxon_", "", result_ldm$med.detected.otu.omni))
   
+  # Apply HIMA method
+  result_hima <- tryCatch({
+    mhima(exposure = T_vector, covariates = NULL, otu.com = M_nz_matrix, outcome = Y_vector)
+  }, error = function(e) {
+    NULL
+  })
+  
+  detected_otus_hima <- if (!is.null(result_hima)) result_hima$ID else integer(0)
+  
   # Calculate metrics for CCMM
   metrics_ccmm_i <- calculate_metrics(significant_indices_ccmm, spiked_features)
   metrics_ccmm$true_positives <- metrics_ccmm$true_positives + metrics_ccmm_i$true_positives
@@ -107,6 +118,12 @@ metrics_ldm <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0,
   metrics_ldm$true_positives <- metrics_ldm$true_positives + metrics_ldm_i$true_positives
   metrics_ldm$false_positives <- metrics_ldm$false_positives + metrics_ldm_i$false_positives
   metrics_ldm$false_negatives <- metrics_ldm$false_negatives + metrics_ldm_i$false_negatives
+  
+  # Calculate metrics for HIMA
+  metrics_hima_i <- calculate_metrics(detected_otus_hima, spiked_features)
+  metrics_hima$true_positives <- metrics_hima$true_positives + metrics_hima_i$true_positives
+  metrics_hima$false_positives <- metrics_hima$false_positives + metrics_hima_i$false_positives
+  metrics_hima$false_negatives <- metrics_hima$false_negatives + metrics_hima_i$false_negatives
 }
 
 # Finalize metrics calculations
@@ -118,25 +135,40 @@ metrics_ldm$precision <- metrics_ldm$true_positives / (metrics_ldm$true_positive
 metrics_ldm$recall <- metrics_ldm$true_positives / (metrics_ldm$true_positives + metrics_ldm$false_negatives)
 metrics_ldm$f1_score <- 2 * (metrics_ldm$precision * metrics_ldm$recall) / (metrics_ldm$precision + metrics_ldm$recall)
 
-# # Print the results for CCMM
-# cat("CCMM Results:\n")
-# cat("True Positives:", metrics_ccmm$true_positives, "\n")
-# cat("False Positives:", metrics_ccmm$false_positives, "\n")
-# cat("False Negatives:", metrics_ccmm$false_negatives, "\n")
-# cat("Precision:", metrics_ccmm$precision, "\n")
-# cat("Recall:", metrics_ccmm$recall, "\n")
-# cat("F1 Score:", metrics_ccmm$f1_score, "\n\n")
+metrics_hima$precision <- metrics_hima$true_positives / (metrics_hima$true_positives + metrics_hima$false_positives)
+metrics_hima$recall <- metrics_hima$true_positives / (metrics_hima$true_positives + metrics_hima$false_negatives)
+metrics_hima$f1_score <- 2 * (metrics_hima$precision * metrics_hima$recall) / (metrics_hima$precision + metrics_hima$recall)
+
+
+# Print the results for CCMM
+cat("CCMM Results:\n")
+cat("True Positives:", metrics_ccmm$true_positives, "\n")
+cat("False Positives:", metrics_ccmm$false_positives, "\n")
+cat("False Negatives:", metrics_ccmm$false_negatives, "\n")
+cat("Precision:", metrics_ccmm$precision, "\n")
+cat("Recall:", metrics_ccmm$recall, "\n")
+cat("F1 Score:", metrics_ccmm$f1_score, "\n\n")
+
+# Print the results for LDM
+cat("LDM Results:\n")
+cat("True Positives:", metrics_ldm$true_positives, "\n")
+cat("False Positives:", metrics_ldm$false_positives, "\n")
+cat("False Negatives:", metrics_ldm$false_negatives, "\n")
+cat("Precision:", metrics_ldm$precision, "\n")
+cat("Recall:", metrics_ldm$recall, "\n")
+cat("F1 Score:", metrics_ldm$f1_score, "\n")
+
+# Print the results for HIMA
+cat("HIMA Results:\n")
+cat("True Positives:", metrics_hima$true_positives, "\n")
+cat("False Positives:", metrics_hima$false_positives, "\n")
+cat("False Negatives:", metrics_hima$false_negatives, "\n")
+cat("Precision:", metrics_hima$precision, "\n")
+cat("Recall:", metrics_hima$recall, "\n")
+cat("F1 Score:", metrics_hima$f1_score, "\n")
 # 
-# # Print the results for LDM
-# cat("LDM Results:\n")
-# cat("True Positives:", metrics_ldm$true_positives, "\n")
-# cat("False Positives:", metrics_ldm$false_positives, "\n")
-# cat("False Negatives:", metrics_ldm$false_negatives, "\n")
-# cat("Precision:", metrics_ldm$precision, "\n")
-# cat("Recall:", metrics_ldm$recall, "\n")
-# cat("F1 Score:", metrics_ldm$f1_score, "\n")
-# 
-# cat("CCMM Results:\n")
+# Print the results for CCMM
+# > cat("CCMM Results:\n")
 # CCMM Results:
 #   > cat("True Positives:", metrics_ccmm$true_positives, "\n")
 # True Positives: 14 
@@ -167,4 +199,20 @@ metrics_ldm$f1_score <- 2 * (metrics_ldm$precision * metrics_ldm$recall) / (metr
 # Recall: 0.05 
 # > cat("F1 Score:", metrics_ldm$f1_score, "\n")
 # F1 Score: 0.08955224 
+# > 
+#   > # Print the results for HIMA
+#   > cat("HIMA Results:\n")
+# HIMA Results:
+#   > cat("True Positives:", metrics_hima$true_positives, "\n")
+# True Positives: 1 
+# > cat("False Positives:", metrics_hima$false_positives, "\n")
+# False Positives: 0 
+# > cat("False Negatives:", metrics_hima$false_negatives, "\n")
+# False Negatives: 59 
+# > cat("Precision:", metrics_hima$precision, "\n")
+# Precision: 1 
+# > cat("Recall:", metrics_hima$recall, "\n")
+# Recall: 0.01666667 
+# > cat("F1 Score:", metrics_hima$f1_score, "\n")
+# F1 Score: 0.03278689 
 # > 

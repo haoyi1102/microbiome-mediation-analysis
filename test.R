@@ -6,6 +6,7 @@ library(graphics)
 library(energy)  
 library(matrixStats)
 library(devtools)
+
 ##
 source("modima.R")
 source("MedOmniTest.R")
@@ -19,6 +20,10 @@ library(LDM)
 library(MicroBVS)
 #devtools::install_github("quranwu/MedZIM")
 library(MedZIM)
+#install.packages("microHIMA_1.0.tar.gz", repos = NULL, type = "source")
+library(microHIMA) #install.packages("ncvreg") # install.packages("hommel")
+
+
 
 set.seed(1234)
 # 读取数据
@@ -47,6 +52,11 @@ M_nz_matrix <- apply(M_matrix, 1, function(row) {
 })
 M_nz_matrix <- t(M_nz_matrix) #non-zero comp
 class(M_nz_matrix)
+##################33microHIMA
+mhima_fit <- mhima(exposure = T_vector, covariates = NULL, otu.com = M_nz_matrix, outcome = Y_vector)
+mhima_fit$ID
+print(mhima_fit)
+
 ################ MODIMA
 T_dist <- dist(T_vector)
 Y_dist <- dist(Y_vector)
