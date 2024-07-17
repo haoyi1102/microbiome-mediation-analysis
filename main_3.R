@@ -6,6 +6,7 @@ library(graphics)
 library(energy)
 library(matrixStats)
 library(devtools)
+library(gtools)
 
 source("modima.R")
 source("MedOmniTest.R")
@@ -19,7 +20,8 @@ library(LDM)
 library(MicroBVS)
 # devtools::install_github("quranwu/MedZIM")
 library(MedZIM)
-library(microHIMA)
+#install.packages("microHIMA_1.0.tar.gz", repos = NULL, type = "source")
+library(microHIMA) #install.packages("ncvreg") # install.packages("hommel")
 
 set.seed(1234)
 
@@ -28,6 +30,7 @@ output_dir <- "simulation_data_4"
 
 # List all .rds files in the directory
 rds_files <- list.files(output_dir, pattern = "*.rds", full.names = TRUE)
+rds_files <- mixedsort(rds_files)
 
 # Load all .rds files into a list
 simulation_results <- lapply(rds_files, readRDS)
@@ -48,7 +51,7 @@ preprocess_data <- function(result) {
   })
   M_nz_matrix <- t(M_nz_matrix)
   
-  list(Y_vector = Y_vector, T_vector = T_vector, M_nz_matrix = M_nz_matrix)
+  list(Y_vector = Y_vector, T_vector = T_vector, M_nz_matrix = M_nz_matrix, M_matrix = M_matrix)
 }
 
 # Function to calculate metrics
@@ -57,162 +60,193 @@ calculate_metrics <- function(detected_indices, true_indices) {
   false_positives <- length(setdiff(detected_indices, true_indices))
   false_negatives <- length(setdiff(true_indices, detected_indices))
   
-  precision <- true_positives / (true_positives + false_positives)
-  recall <- true_positives / (true_positives + false_negatives)
-  f1_score <- 2 * (precision * recall) / (precision + recall)
+  precision <- ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0)
+  recall <- ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0)
+  f1_score <- ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
   
   list(precision = precision, recall = recall, f1_score = f1_score,
        true_positives = true_positives, false_positives = false_positives, false_negatives = false_negatives)
 }
 
-# Initialize metrics for CCMM, LDM, and HIMA methods
-metrics_ccmm <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0, false_positives = 0, false_negatives = 0)
-metrics_ldm <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0, false_positives = 0, false_negatives = 0)
-metrics_hima <- list(precision = 0, recall = 0, f1_score = 0, true_positives = 0, false_positives = 0, false_negatives = 0)
+# Initialize results data frame in long format
+results_long_df <- data.frame(method = character(), iteration = integer(), true_positives = integer(),
+                              false_positives = integer(), false_negatives = integer(), precision = numeric(), 
+                              recall = numeric(), f1_score = numeric())
 
-# for (i in 1:length(simulation_results)) {
-# Loop through each result and apply CCMM, LDM, and HIMA methods
-for (i in 1:10) {
-  # i = 3
-  result <- simulation_results[[i]]
-  preprocessed_data <- preprocess_data(result)
+# Loop through each result and apply methods
+for (i in 1:length(simulation_results)) {
+  # for (i in 1:2) {
+  start_time <- Sys.time()
   
+  result <- simulation_results[[i]]
+  spiked_features <- as.numeric(gsub("Feature", "", result$feature$feature_spiked))
+  
+  preprocessed_data <- preprocess_data(result)
   Y_vector <- preprocessed_data$Y_vector
   T_vector <- preprocessed_data$T_vector
   M_nz_matrix <- preprocessed_data$M_nz_matrix
-  
-  spiked_features <- as.numeric(gsub("Feature", "", result$feature$feature_spiked))
+  M_matrix <- preprocessed_data$M_matrix
+  M_absolute <- result$absolute_M
   
   # Apply CCMM method
-  result_ccmm <- ccmm(Y_vector, M_nz_matrix, T_vector, x = NULL, w = NULL, method.est.cov = "bootstrap", n.boot = 2000,
-                      sig.level = 0.05, tol = 1e-06, max.iter = 5000)
-  significant_indices_ccmm <- as.numeric(which(result_ccmm$IDE.CIs[1, ] > 0 | result_ccmm$IDE.CIs[2, ] < 0))
+  try({
+    result_ccmm <- ccmm(Y_vector, M_nz_matrix, T_vector, x = NULL, w = NULL, method.est.cov = "bootstrap", n.boot = 2000,
+                        sig.level = 0.05, tol = 1e-06, max.iter = 5000)
+    significant_indices_ccmm <- as.numeric(which(result_ccmm$IDE.CIs[1, ] > 0 | result_ccmm$IDE.CIs[2, ] < 0))
+    metrics_ccmm <- calculate_metrics(significant_indices_ccmm, spiked_features)
+    results_long_df <- rbind(results_long_df, data.frame(method = "ccmm", iteration = i, true_positives = metrics_ccmm$true_positives,
+                                                         false_positives = metrics_ccmm$false_positives, false_negatives = metrics_ccmm$false_negatives,
+                                                         precision = metrics_ccmm$precision, recall = metrics_ccmm$recall, f1_score = metrics_ccmm$f1_score))
+  }, silent = TRUE)
   
   # Apply LDM method
-  data <- data.frame(Y = Y_vector, T = T_vector)
-  result_ldm <- ldm(
-    formula = M_nz_matrix ~ T + Y,
-    data = data,
-    seed = 1234,
-    test.mediation = TRUE
-  )
-  detected_otus_ldm <- as.numeric(gsub("taxon_", "", result_ldm$med.detected.otu.omni))
+  try({
+    data <- data.frame(Y = Y_vector, T = T_vector)
+    result_ldm <- ldm(
+      formula = M_nz_matrix ~ T + Y,
+      data = data,
+      seed = 1234,
+      test.mediation = TRUE
+    )
+    detected_otus_ldm <- as.numeric(gsub("taxon_", "", result_ldm$med.detected.otu.omni))
+    metrics_ldm <- calculate_metrics(detected_otus_ldm, spiked_features)
+    results_long_df <- rbind(results_long_df, data.frame(method = "ldm", iteration = i, true_positives = metrics_ldm$true_positives,
+                                                         false_positives = metrics_ldm$false_positives, false_negatives = metrics_ldm$false_negatives,
+                                                         precision = metrics_ldm$precision, recall = metrics_ldm$recall, f1_score = metrics_ldm$f1_score))
+  }, silent = TRUE)
   
   # Apply HIMA method
-  result_hima <- tryCatch({
-    mhima(exposure = T_vector, covariates = NULL, otu.com = M_nz_matrix, outcome = Y_vector)
-  }, error = function(e) {
-    NULL
-  })
+  try({
+    result_hima <- mhima(exposure = T_vector, covariates = NULL, otu.com = M_nz_matrix, outcome = Y_vector)
+    detected_otus_hima <- if (!is.null(result_hima)) result_hima$ID else integer(0)
+    metrics_hima <- calculate_metrics(detected_otus_hima, spiked_features)
+    results_long_df <- rbind(results_long_df, data.frame(method = "hima", iteration = i, true_positives = metrics_hima$true_positives,
+                                                         false_positives = metrics_hima$false_positives, false_negatives = metrics_hima$false_negatives,
+                                                         precision = metrics_hima$precision, recall = metrics_hima$recall, f1_score = metrics_hima$f1_score))
+  }, silent = TRUE)
   
-  detected_otus_hima <- if (!is.null(result_hima)) result_hima$ID else integer(0)
+  # Apply microbvs method
+  try({
+    model_real <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_nz_matrix, taxa = 2, iterations = 3000)
+    result_global <- Selection_Med2(model = model_real)
+    detected_otus_microbvs <- which(result_global$selected)
+    metrics_microbvs <- calculate_metrics(detected_otus_microbvs, spiked_features)
+    results_long_df <- rbind(results_long_df, data.frame(method = "microbvs", iteration = i, true_positives = metrics_microbvs$true_positives,
+                                                         false_positives = metrics_microbvs$false_positives, false_negatives = metrics_microbvs$false_negatives,
+                                                         precision = metrics_microbvs$precision, recall = metrics_microbvs$recall, f1_score = metrics_microbvs$f1_score))
+  }, silent = TRUE)
   
-  # Calculate metrics for CCMM
-  metrics_ccmm_i <- calculate_metrics(significant_indices_ccmm, spiked_features)
-  metrics_ccmm$true_positives <- metrics_ccmm$true_positives + metrics_ccmm_i$true_positives
-  metrics_ccmm$false_positives <- metrics_ccmm$false_positives + metrics_ccmm_i$false_positives
-  metrics_ccmm$false_negatives <- metrics_ccmm$false_negatives + metrics_ccmm_i$false_negatives
+  # Apply MedZIM method
+  try({
+    taxon_name <- "taxon_"
+    
+    libsize <- colSums(M_absolute)
+    dat <- data.frame(Y_vector, T_vector, libsize)
+    dat <- cbind(dat, M_matrix)
+    
+    MedZIM_results <- MedZIM_func(
+      dat = dat,
+      xVar = "T_vector",
+      yVar = "Y_vector",
+      taxon_name = taxon_name,
+      libSize_name = "libsize",
+      obs_gt_0 = 2,
+      obs_eq_0 = 2,
+      inter_x_mg0 = TRUE,
+      inter_x_m = FALSE,
+      eval.max = 200,
+      iter.max = 200,
+      x_from = 0,
+      x_to = 1,
+      type1error = 0.05,
+      paraJobs = 2
+    )
+    
+    detected_otus_medzim <- c()
+    
+    for (taxon in names(MedZIM_results$fullList)) {
+      pNIE_value <- MedZIM_results$fullList[taxon][[1]]
+      pNIE_value <- as.numeric(pNIE_value[[1]]["pNIE"])
+      if (!is.na(pNIE_value) && pNIE_value < 0.05) {
+        detected_otus_medzim <- c(detected_otus_medzim, taxon)
+      }
+    }
+    
+    detected_otus_medzim <- as.numeric(gsub("taxon_", "", detected_otus_medzim))
+    
+    metrics_medzim <- calculate_metrics(detected_otus_medzim, spiked_features)
+    results_long_df <- rbind(results_long_df, data.frame(method = "medzim", iteration = i, true_positives = metrics_medzim$true_positives,
+                                                         false_positives = metrics_medzim$false_positives, false_negatives = metrics_medzim$false_negatives,
+                                                         precision = metrics_medzim$precision, recall = metrics_medzim$recall, f1_score = metrics_medzim$f1_score))
+  }, silent = TRUE)
   
-  # Calculate metrics for LDM
-  metrics_ldm_i <- calculate_metrics(detected_otus_ldm, spiked_features)
-  metrics_ldm$true_positives <- metrics_ldm$true_positives + metrics_ldm_i$true_positives
-  metrics_ldm$false_positives <- metrics_ldm$false_positives + metrics_ldm_i$false_positives
-  metrics_ldm$false_negatives <- metrics_ldm$false_negatives + metrics_ldm_i$false_negatives
-  
-  # Calculate metrics for HIMA
-  metrics_hima_i <- calculate_metrics(detected_otus_hima, spiked_features)
-  metrics_hima$true_positives <- metrics_hima$true_positives + metrics_hima_i$true_positives
-  metrics_hima$false_positives <- metrics_hima$false_positives + metrics_hima_i$false_positives
-  metrics_hima$false_negatives <- metrics_hima$false_negatives + metrics_hima_i$false_negatives
+  end_time <- Sys.time()
+  cat("Iteration", i, "took", round(difftime(end_time, start_time, units = "secs"), 2), "seconds\n")
 }
 
-# Finalize metrics calculations
-metrics_ccmm$precision <- metrics_ccmm$true_positives / (metrics_ccmm$true_positives + metrics_ccmm$false_positives)
-metrics_ccmm$recall <- metrics_ccmm$true_positives / (metrics_ccmm$true_positives + metrics_ccmm$false_negatives)
-metrics_ccmm$f1_score <- 2 * (metrics_ccmm$precision * metrics_ccmm$recall) / (metrics_ccmm$precision + metrics_ccmm$recall)
+# Print the results
+print(results_long_df)
 
-metrics_ldm$precision <- metrics_ldm$true_positives / (metrics_ldm$true_positives + metrics_ldm$false_positives)
-metrics_ldm$recall <- metrics_ldm$true_positives / (metrics_ldm$true_positives + metrics_ldm$false_negatives)
-metrics_ldm$f1_score <- 2 * (metrics_ldm$precision * metrics_ldm$recall) / (metrics_ldm$precision + metrics_ldm$recall)
+# Save results_long_df to CSV
+write.csv(results_long_df, file = "results_long_df.csv", row.names = FALSE)
 
-metrics_hima$precision <- metrics_hima$true_positives / (metrics_hima$true_positives + metrics_hima$false_positives)
-metrics_hima$recall <- metrics_hima$true_positives / (metrics_hima$true_positives + metrics_hima$false_negatives)
-metrics_hima$f1_score <- 2 * (metrics_hima$precision * metrics_hima$recall) / (metrics_hima$precision + metrics_hima$recall)
+##########################33333
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Read the results_long_df from the CSV file
+results_long_df <- read.csv("results_long_df.csv")
+
+# Create a vector of effect sizes
+effect_sizes <- rep(c(1, seq(5, 50, by = 5)), each = 10)# each controls sample
+
+# Map iterations to effect sizes
+results_long_df <- results_long_df %>%
+  mutate(effect_size = effect_sizes[iteration])
+
+# Remove unused columns
+results_long_df <- results_long_df %>%
+  select(method, iteration, true_positives, false_positives, effect_size)
 
 
-# Print the results for CCMM
-cat("CCMM Results:\n")
-cat("True Positives:", metrics_ccmm$true_positives, "\n")
-cat("False Positives:", metrics_ccmm$false_positives, "\n")
-cat("False Negatives:", metrics_ccmm$false_negatives, "\n")
-cat("Precision:", metrics_ccmm$precision, "\n")
-cat("Recall:", metrics_ccmm$recall, "\n")
-cat("F1 Score:", metrics_ccmm$f1_score, "\n\n")
 
-# Print the results for LDM
-cat("LDM Results:\n")
-cat("True Positives:", metrics_ldm$true_positives, "\n")
-cat("False Positives:", metrics_ldm$false_positives, "\n")
-cat("False Negatives:", metrics_ldm$false_negatives, "\n")
-cat("Precision:", metrics_ldm$precision, "\n")
-cat("Recall:", metrics_ldm$recall, "\n")
-cat("F1 Score:", metrics_ldm$f1_score, "\n")
+# Group by effect_size and method, then summarize the metrics
+summary_df <- results_long_df %>%
+  group_by(effect_size, method) %>%
+  summarise(
+    true_positives = sum(true_positives, na.rm = TRUE),
+    false_positives = sum(false_positives, na.rm = TRUE),
+  )
 
-# Print the results for HIMA
-cat("HIMA Results:\n")
-cat("True Positives:", metrics_hima$true_positives, "\n")
-cat("False Positives:", metrics_hima$false_positives, "\n")
-cat("False Negatives:", metrics_hima$false_negatives, "\n")
-cat("Precision:", metrics_hima$precision, "\n")
-cat("Recall:", metrics_hima$recall, "\n")
-cat("F1 Score:", metrics_hima$f1_score, "\n")
-# 
-# Print the results for CCMM
-# > cat("CCMM Results:\n")
-# CCMM Results:
-#   > cat("True Positives:", metrics_ccmm$true_positives, "\n")
-# True Positives: 14 
-# > cat("False Positives:", metrics_ccmm$false_positives, "\n")
-# False Positives: 7 
-# > cat("False Negatives:", metrics_ccmm$false_negatives, "\n")
-# False Negatives: 46 
-# > cat("Precision:", metrics_ccmm$precision, "\n")
-# Precision: 0.6666667 
-# > cat("Recall:", metrics_ccmm$recall, "\n")
-# Recall: 0.2333333 
-# > cat("F1 Score:", metrics_ccmm$f1_score, "\n\n")
-# F1 Score: 0.345679 
-# 
-# > 
-#   > # Print the results for LDM
-#   > cat("LDM Results:\n")
-# LDM Results:
-#   > cat("True Positives:", metrics_ldm$true_positives, "\n")
-# True Positives: 3 
-# > cat("False Positives:", metrics_ldm$false_positives, "\n")
-# False Positives: 4 
-# > cat("False Negatives:", metrics_ldm$false_negatives, "\n")
-# False Negatives: 57 
-# > cat("Precision:", metrics_ldm$precision, "\n")
-# Precision: 0.4285714 
-# > cat("Recall:", metrics_ldm$recall, "\n")
-# Recall: 0.05 
-# > cat("F1 Score:", metrics_ldm$f1_score, "\n")
-# F1 Score: 0.08955224 
-# > 
-#   > # Print the results for HIMA
-#   > cat("HIMA Results:\n")
-# HIMA Results:
-#   > cat("True Positives:", metrics_hima$true_positives, "\n")
-# True Positives: 1 
-# > cat("False Positives:", metrics_hima$false_positives, "\n")
-# False Positives: 0 
-# > cat("False Negatives:", metrics_hima$false_negatives, "\n")
-# False Negatives: 59 
-# > cat("Precision:", metrics_hima$precision, "\n")
-# Precision: 1 
-# > cat("Recall:", metrics_hima$recall, "\n")
-# Recall: 0.01666667 
-# > cat("F1 Score:", metrics_hima$f1_score, "\n")
-# F1 Score: 0.03278689 
-# > 
+# Calculate false_negatives based on total_positives and true_positives
+summary_df <- summary_df %>%
+  mutate(false_negatives = 0.2*20*10 - true_positives)
+
+# Calculate precision, recall, and f1_score
+summary_df <- summary_df %>%
+  mutate(
+    precision = ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0),
+    recall = ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0),
+    f1_score = ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
+  )
+
+results_long_df_long <- summary_df %>%
+  pivot_longer(cols = c(precision, recall, f1_score), names_to = "metric", values_to = "value")
+
+ggplot(results_long_df_long, aes(x = effect_size, y = value, color = method, linetype = metric)) +
+  geom_line(size = 0.8) +  # Adjust line size to be thinner
+  geom_point(size = 2) +
+  labs(title = "Performance Metrics vs Effect Size",
+       x = "Effect Size",
+       y = "Metric Value",
+       color = "Method",
+       linetype = "Metric") +
+  theme_minimal() +
+  theme(legend.position = "right",  # Move legend to the right
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 10),  # Increase legend text size
+        plot.title = element_text(hjust = 0.5, size = 16),  # Center and increase title size
+        axis.title = element_text(size = 14),  # Increase axis title size
+        axis.text = element_text(size = 12))  # Increase axis text size

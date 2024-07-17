@@ -23,9 +23,17 @@ library(MedZIM)
 #install.packages("microHIMA_1.0.tar.gz", repos = NULL, type = "source")
 library(microHIMA) #install.packages("ncvreg") # install.packages("hommel")
 
+#devtools::install_github("KiRinHong/miMediation")
+library(miMediation)
 
-
+data(data.cecal)
+Trt = data.cecal$treatment
+M = data.cecal$mediators
+Y = data.cecal$outcome
+tree = data.cecal$tree
+rslt.phylomed = phyloMed(Trt, M, Y, tree = tree, graph = "rectangular")
 set.seed(1234)
+
 # 读取数据
 Y <- read.csv("outcome.csv", header = TRUE)
 treatment <- read.csv("treatment.csv", header = TRUE)
@@ -122,16 +130,13 @@ result <- ldm(
   seed = 1234,
   test.mediation = TRUE
 )
-?ldm
+
 print(result$med.detected.otu.omni)
 
 ##### microbvs
 model_real <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_matrix, taxa = 2)
-result_real <- Selection_Med1(model = model_real)
-
 result_global <- Selection_Med2(model = model_real)
-
-model_global <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_matrix, seed = 1234)
+result_global$selected
 
 ##### MedZim
 
@@ -161,3 +166,22 @@ results <- MedZIM_func(
   paraJobs = 2
 )
 results$fullList$taxon_1
+results$continuTaxa
+
+results$type1error
+
+###########
+
+data_ldm <- data.frame(Y = Y_vector, T = T_vector)
+formula <- as.formula("M_nz_matrix ~ T + Y")
+res_perm <- ?permanovaFL(
+  formula = formula,
+  data = data_ldm,
+  dist.method = "bray",  
+  seed = 1234,
+  n.perm.max = 1000,
+  n.cores = 4,
+  test.mediation = TRUE,
+  verbose = TRUE
+)
+res_perm

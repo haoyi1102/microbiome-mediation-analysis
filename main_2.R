@@ -20,6 +20,13 @@ library(MicroBVS)
 # devtools::install_github("quranwu/MedZIM")
 library(MedZIM)
 
+# if(!require(mediation)) install.packages("mediation")
+library(mediation)
+
+# 加载并行计算包
+library(parallel)
+library(doParallel)
+
 set.seed(1234)
 
 # Define the directory where the results are stored
@@ -34,8 +41,13 @@ simulation_results <- lapply(rds_files, readRDS)
 # Initialize counters for scores
 modima_score <- 0
 medtest_score <- 0
+simple_mediation_score <- 0
 total_tests <- length(simulation_results)
 
+# 设置并行计算
+num_cores <- detectCores() - 1
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
 # Loop through each result and apply MODIMA and MedOmniTest
 
 for (i in 1:total_tests) {
@@ -55,7 +67,7 @@ for (i in 1:total_tests) {
   modima_result <- modima(T_dist, M_dist, Y_dist, nrep=999)
   modima_p_value <- modima_result$p.value
   
-  if (modima_p_value < 0.5) {
+  if (modima_p_value < 0.05) {
     modima_score <- modima_score + 1
   }
   
@@ -64,19 +76,45 @@ for (i in 1:total_tests) {
   medtest_result <- MedOmniTest(x = T_vector, y = Y_vector, m.list = m_list, z = NULL, nperm = 999)
   medtest_p_value <- medtest_result$permP
   
-  if (medtest_p_value < 0.5) {
+  if (medtest_p_value < 0.05) {
     medtest_score <- medtest_score + 1
   }
+  
+  
+  # # Simple mediation analysis for each mediator using parallel computing
+  # mediation_p_values <- foreach(j = 1:ncol(M_a_matrix), .combine = c, .packages = "mediation") %dopar% {
+  #   M_vector <- M_a_matrix[, j]
+  #   
+  #   model.M <- lm(M_vector ~ T_vector)
+  #   model.Y <- lm(Y_vector ~ T_vector + M_vector)
+  #   
+  #   med.out <- mediate(model.M, model.Y, treat = "T_vector", mediator = "M_vector", boot = TRUE, sims = 100)
+  #   return(med.out$d.avg.p)
+  # }
+  # 
+  # 
+  # # Combine the p-values from multiple mediation analyses
+  # combined_p_value <- min(mediation_p_values) 
+  # 
+  # if (combined_p_value < 0.5) {
+  #   simple_mediation_score <- simple_mediation_score + 1
+  # }
+  # 
+  # print(mediation_p_values)
   print(i)
 }
+
+stopCluster(cl)
 
 # Calculate accuracies
 modima_accuracy <- modima_score / total_tests
 medtest_accuracy <- medtest_score / total_tests
+# simple_mediation_accuracy <- simple_mediation_score / total_tests
 
 # Print results
 print(paste("MODIMA accuracy:", modima_accuracy))
 print(paste("MedOmniTest accuracy:", medtest_accuracy))
+# print(paste("Simple mediation accuracy:", simple_mediation_accuracy))
 
 # #> # Print results
 # > print(paste("MODIMA accuracy:", modima_accuracy))
