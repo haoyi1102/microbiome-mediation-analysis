@@ -23,9 +23,17 @@ library(MedZIM)
 #install.packages("microHIMA_1.0.tar.gz", repos = NULL, type = "source")
 library(microHIMA) #install.packages("ncvreg") # install.packages("hommel")
 
+#devtools::install_github("KiRinHong/miMediation")
+library(miMediation)
 
-
+data(data.cecal)
+Trt = data.cecal$treatment
+M = data.cecal$mediators
+Y = data.cecal$outcome
+tree = data.cecal$tree
+rslt.phylomed = phyloMed(Trt, M, Y, tree = tree, graph = "rectangular")
 set.seed(1234)
+
 # 读取数据
 Y <- read.csv("outcome.csv", header = TRUE)
 treatment <- read.csv("treatment.csv", header = TRUE)

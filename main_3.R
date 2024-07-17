@@ -19,7 +19,8 @@ library(LDM)
 library(MicroBVS)
 # devtools::install_github("quranwu/MedZIM")
 library(MedZIM)
-library(microHIMA)
+#install.packages("microHIMA_1.0.tar.gz", repos = NULL, type = "source")
+library(microHIMA) #install.packages("ncvreg") # install.packages("hommel")
 
 set.seed(1234)
 
