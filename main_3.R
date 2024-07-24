@@ -207,9 +207,10 @@ results_long_df <- results_long_df %>%
   mutate(effect_size = effect_sizes[iteration])
 
 # Remove unused columns
-results_long_df <- results_long_df %>%
-  select(method, iteration, true_positives, false_positives, effect_size)
+# results_long_df <- results_long_df %>%
+#   select(method, iteration, true_positives, false_positives, effect_size)
 
+results_long_df <- dplyr::select(results_long_df, method, iteration, true_positives, false_positives, effect_size)
 
 
 # Group by effect_size and method, then summarize the metrics
@@ -224,6 +225,33 @@ summary_df <- results_long_df %>%
 summary_df <- summary_df %>%
   mutate(false_negatives = 0.2*20*10 - true_positives)
 
+# # Calculate precision, recall, and f1_score
+# summary_df <- summary_df %>%
+#   mutate(
+#     precision = ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0),
+#     recall = ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0),
+#     f1_score = ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
+#   )
+# 
+# results_long_df_long <- summary_df %>%
+#   pivot_longer(cols = c(precision, recall, f1_score), names_to = "metric", values_to = "value")
+# 
+# ggplot(results_long_df_long, aes(x = effect_size, y = value, color = method, linetype = metric)) +
+#   geom_line(size = 0.8) +  # Adjust line size to be thinner
+#   geom_point(size = 2) +
+#   labs(title = "Performance Metrics vs Effect Size",
+#        x = "Effect Size",
+#        y = "Metric Value",
+#        color = "Method",
+#        linetype = "Metric") +
+#   theme_minimal() +
+#   theme(legend.position = "right",  # Move legend to the right
+#         legend.title = element_text(size = 12),  # Increase legend title size
+#         legend.text = element_text(size = 10),  # Increase legend text size
+#         plot.title = element_text(hjust = 0.5, size = 16),  # Center and increase title size
+#         axis.title = element_text(size = 14),  # Increase axis title size
+#         axis.text = element_text(size = 12))  # Increase axis text size
+
 # Calculate precision, recall, and f1_score
 summary_df <- summary_df %>%
   mutate(
@@ -232,17 +260,50 @@ summary_df <- summary_df %>%
     f1_score = ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
   )
 
+# Transform data to long format for plotting
 results_long_df_long <- summary_df %>%
   pivot_longer(cols = c(precision, recall, f1_score), names_to = "metric", values_to = "value")
 
-ggplot(results_long_df_long, aes(x = effect_size, y = value, color = method, linetype = metric)) +
+# Plotting precision
+ggplot(results_long_df_long %>% filter(metric == "precision"), aes(x = effect_size, y = value, color = method)) +
   geom_line(size = 0.8) +  # Adjust line size to be thinner
   geom_point(size = 2) +
-  labs(title = "Performance Metrics vs Effect Size",
+  labs(title = "Precision vs Effect Size",
        x = "Effect Size",
-       y = "Metric Value",
-       color = "Method",
-       linetype = "Metric") +
+       y = "Precision",
+       color = "Method") +
+  theme_minimal() +
+  theme(legend.position = "right",  # Move legend to the right
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 10),  # Increase legend text size
+        plot.title = element_text(hjust = 0.5, size = 16),  # Center and increase title size
+        axis.title = element_text(size = 14),  # Increase axis title size
+        axis.text = element_text(size = 12))  # Increase axis text size
+
+# Plotting recall
+ggplot(results_long_df_long %>% filter(metric == "recall"), aes(x = effect_size, y = value, color = method)) +
+  geom_line(size = 0.8) +  # Adjust line size to be thinner
+  geom_point(size = 2) +
+  labs(title = "Recall vs Effect Size",
+       x = "Effect Size",
+       y = "Recall",
+       color = "Method") +
+  theme_minimal() +
+  theme(legend.position = "right",  # Move legend to the right
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 10),  # Increase legend text size
+        plot.title = element_text(hjust = 0.5, size = 16),  # Center and increase title size
+        axis.title = element_text(size = 14),  # Increase axis title size
+        axis.text = element_text(size = 12))  # Increase axis text size
+
+# Plotting f1_score
+ggplot(results_long_df_long %>% filter(metric == "f1_score"), aes(x = effect_size, y = value, color = method)) +
+  geom_line(size = 0.8) +  # Adjust line size to be thinner
+  geom_point(size = 2) +
+  labs(title = "F1 Score vs Effect Size",
+       x = "Effect Size",
+       y = "F1 Score",
+       color = "Method") +
   theme_minimal() +
   theme(legend.position = "right",  # Move legend to the right
         legend.title = element_text(size = 12),  # Increase legend title size

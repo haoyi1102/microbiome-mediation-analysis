@@ -1,186 +1,173 @@
-# Existing setup code
-rm(list = ls())
+# Load necessary libraries
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(gridExtra)
+library(grid) 
 
-library(MASS)
-library(stats)
-library(graphics)
-library(energy)
-library(matrixStats)
-library(devtools)
-library(gtools)
-
-source("modima.R")
-source("MedOmniTest.R")
-# install_github("chanw0/SparseMCMM")
-library(SparseMCMM)
-# install.packages("ccmm")
-library(ccmm)
-# install_github("yijuanhu/LDM")
-library(LDM)
-# install_github("mkoslovsky/MicroBVS")
-library(MicroBVS)
-# devtools::install_github("quranwu/MedZIM")
-library(MedZIM)
-#install.packages("microHIMA_1.0.tar.gz", repos = NULL, type = "source")
-library(microHIMA) #install.packages("ncvreg") # install.packages("hommel")
-
-set.seed(1234)
-
-# Define the directory where the results are stored
-output_dir <- "simulation_data_4"
-
-# List all .rds files in the directory
-rds_files <- list.files(output_dir, pattern = "*.rds", full.names = TRUE)
-rds_files <- mixedsort(rds_files)
-
-# Load all .rds files into a list
-simulation_results <- lapply(rds_files, readRDS)
-
-# Function to preprocess data
-preprocess_data <- function(result) {
-  Y_vector <- as.numeric(result$Y)
-  T_vector <- as.numeric(result$T)
-  M_a_matrix <- as.matrix(t(result$absolute_M))
-  colnames(M_a_matrix) <- paste0("taxon_", 1:ncol(M_a_matrix))
+# Function to process data and calculate power
+process_data <- function(file_path, sample_sizes, effect_size, n) {
+  results_df <- read.csv(file_path)
+  results_df$sample_size <- rep(sample_sizes, each = n)
+  results_df[is.na(results_df)] <- 1
   
-  M_matrix <- M_a_matrix / rowSums(M_a_matrix)
-  M_nz_matrix <- apply(M_matrix, 1, function(row) {
-    min_value <- min(row[row > 0])
-    pseudo_count <- min_value / 100
-    row[row == 0] <- pseudo_count
-    return(row)
-  })
-  M_nz_matrix <- t(M_nz_matrix)
+  results_long <- melt(results_df, id.vars = "sample_size", 
+                       measure.vars = c("modima_p_value", "medtest_p_value", 
+                                        "sparsemcmm_ome_p_value.OME", "ldm_p_value", 
+                                        "permanova_p_value"),
+                       variable.name = "Method", value.name = "p_value")
   
-  list(Y_vector = Y_vector, T_vector = T_vector, M_nz_matrix = M_nz_matrix, M_matrix = M_matrix)
+  results_long$Method <- recode(results_long$Method,
+                                "modima_p_value" = "MODIMA",
+                                "medtest_p_value" = "MedTest",
+                                "sparsemcmm_ome_p_value.OME" = "SparseMCMM",
+                                "ldm_p_value" = "LDM",
+                                "permanova_p_value" = "PERMANOVA")
+  
+  power_results <- results_long %>%
+    group_by(sample_size, Method) %>%
+    summarise(power = mean(p_value < 0.05, na.rm = TRUE))
+  
+  results_df <- results_df %>%
+    mutate(ccmm_reject = ifelse(ccmm_CI_lower > 0 | ccmm_CI_upper < 0, 1, 0),
+           microbvs_reject = ifelse(`microbvs_result.2.5.` > 0 | `microbvs_result.97.5.` < 0, 1, 0))
+  
+  ccmm_power_results <- results_df %>%
+    group_by(sample_size) %>%
+    summarise(Method = "CCMM", power = mean(ccmm_reject, na.rm = TRUE))
+  
+  microbvs_power_results <- results_df %>%
+    group_by(sample_size) %>%
+    summarise(Method = "MicroBVS", power = mean(microbvs_reject, na.rm = TRUE))
+  
+  power_results <- bind_rows(power_results, ccmm_power_results, microbvs_power_results)
+  power_results$power[power_results$power == 0] <- 0.005
+  
+  return(power_results)
 }
 
-# Function to calculate metrics
-calculate_metrics <- function(detected_indices, true_indices) {
-  true_positives <- length(intersect(detected_indices, true_indices))
-  false_positives <- length(setdiff(detected_indices, true_indices))
-  false_negatives <- length(setdiff(true_indices, detected_indices))
+# Function to process data and calculate type-1 error
+process_data_error <- function(file_path, sample_sizes, n) {
+  results_df <- read.csv(file_path)
+  results_df$sample_size <- rep(sample_sizes, each = n)
+  results_df[is.na(results_df)] <- 1
   
-  precision <- ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0)
-  recall <- ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0)
-  f1_score <- ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
+  results_long <- melt(results_df, id.vars = "sample_size", 
+                       measure.vars = c("modima_p_value", "medtest_p_value", 
+                                        "sparsemcmm_ome_p_value.OME", "ldm_p_value", 
+                                        "permanova_p_value"),
+                       variable.name = "Method", value.name = "p_value")
   
-  list(precision = precision, recall = recall, f1_score = f1_score,
-       true_positives = true_positives, false_positives = false_positives, false_negatives = false_negatives)
+  results_long$Method <- recode(results_long$Method,
+                                "modima_p_value" = "MODIMA",
+                                "medtest_p_value" = "MedTest",
+                                "sparsemcmm_ome_p_value.OME" = "SparseMCMM",
+                                "ldm_p_value" = "LDM",
+                                "permanova_p_value" = "PERMANOVA")
+  
+  type1_error_results <- results_long %>%
+    group_by(sample_size, Method) %>%
+    summarise(type1_error = mean(p_value < 0.05, na.rm = TRUE))
+  
+  results_df <- results_df %>%
+    mutate(ccmm_reject = ifelse(ccmm_CI_lower > 0 | ccmm_CI_upper < 0, 1, 0),
+           microbvs_reject = ifelse(`microbvs_result.2.5.` > 0 | `microbvs_result.97.5.` < 0, 1, 0))
+  
+  ccmm_type1_error_results <- results_df %>%
+    group_by(sample_size) %>%
+    summarise(Method = "CCMM", type1_error = mean(ccmm_reject, na.rm = TRUE))
+  
+  microbvs_type1_error_results <- results_df %>%
+    group_by(sample_size) %>%
+    summarise(Method = "MicroBVS", type1_error = mean(microbvs_reject, na.rm = TRUE))
+  
+  type1_error_results <- bind_rows(type1_error_results, ccmm_type1_error_results, microbvs_type1_error_results)
+  type1_error_results$type1_error[type1_error_results$type1_error == 0] <- 0.001
+  
+  return(type1_error_results)
 }
 
-# Initialize results data frame in long format
-results_long_df <- data.frame(method = character(), iteration = integer(), true_positives = integer(),
-                              false_positives = integer(), false_negatives = integer(), precision = numeric(), 
-                              recall = numeric(), f1_score = numeric())
+# Process data
+power_results_20 <- process_data("mediation_analysis_results_sample_new.csv", c(50, 100, 300), 20, 10)
+power_results_1 <- process_data("mediation_analysis_results_sample.csv", c(50, 100, 300), 1, 20)
+type1_error_results_20 <- process_data_error("mediation_analysis_results_new_no_mediation_effect_sample.csv", c(50, 100, 300), 10)
+type1_error_results_1 <- process_data_error("mediation_analysis_results_no_mediation_effect__sample.csv", c(50, 100, 300), 20)
 
-# Loop through each result and apply methods
-# for (i in 1:length(simulation_results)) {
-  for (i in 1:2) {
-  start_time <- Sys.time()
-  
-  result <- simulation_results[[i]]
-  spiked_features <- as.numeric(gsub("Feature", "", result$feature$feature_spiked))
-  
-  preprocessed_data <- preprocess_data(result)
-  Y_vector <- preprocessed_data$Y_vector
-  T_vector <- preprocessed_data$T_vector
-  M_nz_matrix <- preprocessed_data$M_nz_matrix
-  M_matrix <- preprocessed_data$M_matrix
-  M_absolute <- result$absolute_M
-  
-  # Apply CCMM method
-  result_ccmm <- ccmm(Y_vector, M_nz_matrix, T_vector, x = NULL, w = NULL, method.est.cov = "bootstrap", n.boot = 2000,
-                      sig.level = 0.05, tol = 1e-06, max.iter = 5000)
-  significant_indices_ccmm <- as.numeric(which(result_ccmm$IDE.CIs[1, ] > 0 | result_ccmm$IDE.CIs[2, ] < 0))
-  metrics_ccmm <- calculate_metrics(significant_indices_ccmm, spiked_features)
-  results_long_df <- rbind(results_long_df, data.frame(method = "ccmm", iteration = i, true_positives = metrics_ccmm$true_positives,
-                                                       false_positives = metrics_ccmm$false_positives, false_negatives = metrics_ccmm$false_negatives,
-                                                       precision = metrics_ccmm$precision, recall = metrics_ccmm$recall, f1_score = metrics_ccmm$f1_score))
-  
-  # Apply LDM method
-  data <- data.frame(Y = Y_vector, T = T_vector)
-  result_ldm <- ldm(
-    formula = M_nz_matrix ~ T + Y,
-    data = data,
-    seed = 1234,
-    test.mediation = TRUE
-  )
-  detected_otus_ldm <- as.numeric(gsub("taxon_", "", result_ldm$med.detected.otu.omni))
-  metrics_ldm <- calculate_metrics(detected_otus_ldm, spiked_features)
-  results_long_df <- rbind(results_long_df, data.frame(method = "ldm", iteration = i, true_positives = metrics_ldm$true_positives,
-                                                       false_positives = metrics_ldm$false_positives, false_negatives = metrics_ldm$false_negatives,
-                                                       precision = metrics_ldm$precision, recall = metrics_ldm$recall, f1_score = metrics_ldm$f1_score))
-  
-  # Apply HIMA method
-  result_hima <- tryCatch({
-    mhima(exposure = T_vector, covariates = NULL, otu.com = M_nz_matrix, outcome = Y_vector)
-  }, error = function(e) {
-    NULL
-  })
-  detected_otus_hima <- if (!is.null(result_hima)) result_hima$ID else integer(0)
-  metrics_hima <- calculate_metrics(detected_otus_hima, spiked_features)
-  results_long_df <- rbind(results_long_df, data.frame(method = "hima", iteration = i, true_positives = metrics_hima$true_positives,
-                                                       false_positives = metrics_hima$false_positives, false_negatives = metrics_hima$false_negatives,
-                                                       precision = metrics_hima$precision, recall = metrics_hima$recall, f1_score = metrics_hima$f1_score))
-  
-  # Apply microbvs method
-  model_real <- MCMC_Med(trt = T_vector, Y = Y_vector, Z = M_nz_matrix, taxa = 2, iterations = 3000)
-  result_global <- Selection_Med2(model = model_real)
-  detected_otus_microbvs <- which(result_global$selected)
-  metrics_microbvs <- calculate_metrics(detected_otus_microbvs, spiked_features)
-  results_long_df <- rbind(results_long_df, data.frame(method = "microbvs", iteration = i, true_positives = metrics_microbvs$true_positives,
-                                                       false_positives = metrics_microbvs$false_positives, false_negatives = metrics_microbvs$false_negatives,
-                                                       precision = metrics_microbvs$precision, recall = metrics_microbvs$recall, f1_score = metrics_microbvs$f1_score))
-  
-  # Apply MedZIM method
-  taxon_name <- "taxon_"
-  
-  libsize <- colSums(M_absolute)
-  dat <- data.frame(Y_vector, T_vector, libsize)
-  dat <- cbind(dat, M_matrix)
-  
-  MedZIM_results <- MedZIM_func(
-    dat = dat,
-    xVar = "T_vector",
-    yVar = "Y_vector",
-    taxon_name = taxon_name,
-    libSize_name = "libsize",
-    obs_gt_0 = 2,
-    obs_eq_0 = 2,
-    inter_x_mg0 = TRUE,
-    inter_x_m = FALSE,
-    eval.max = 200,
-    iter.max = 200,
-    x_from = 0,
-    x_to = 1,
-    type1error = 0.05,
-    paraJobs = 2
-  )
-  
-  detected_otus_medzim <- c()
-  
-  for (taxon in names(MedZIM_results$fullList)) {
-    pNIE_value <- MedZIM_results$fullList[taxon][[1]]
-    pNIE_value <- as.numeric(pNIE_value[[1]]["pNIE"])
-    if (!is.na(pNIE_value) && pNIE_value < 0.05) {
-      detected_otus_medzim <- c(detected_otus_medzim, taxon)
-    }
-  }
-  
-  detected_otus_medzim <- as.numeric(gsub("taxon_", "", detected_otus_medzim))
-  
-  metrics_medzim <- calculate_metrics(detected_otus_medzim, spiked_features)
-  results_long_df <- rbind(results_long_df, data.frame(method = "medzim", iteration = i, true_positives = metrics_medzim$true_positives,
-                                                       false_positives = metrics_medzim$false_positives, false_negatives = metrics_medzim$false_negatives,
-                                                       precision = metrics_medzim$precision, recall = metrics_medzim$recall, f1_score = metrics_medzim$f1_score))
-  
-  end_time <- Sys.time()
-  cat("Iteration", i, "took", round(difftime(end_time, start_time, units = "secs"), 2), "seconds\n")
+# Plot power and type-1 error results
+simplify_plot <- function(plot, y_label) {
+  plot +
+    theme_minimal() +
+    labs(x = "Method", y = y_label) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          axis.title.x = element_blank(),
+          legend.position = "bottom",
+          legend.title = element_blank(),
+          legend.box.margin = margin(t = -10)) +
+    scale_fill_discrete(name = "Sample Size")
 }
 
-# Print the results
-print(results_long_df)
+power_plot_1 <- simplify_plot(
+  ggplot(power_results_1, aes(x = Method, y = power, fill = as.factor(sample_size))) +
+    geom_bar(stat = "identity", position = "dodge"),
+  "Power"
+)
 
-# Save results_long_df to CSV
-write.csv(results_long_df, file = "results_long_df.csv", row.names = FALSE)
+power_plot_20 <- simplify_plot(
+  ggplot(power_results_20, aes(x = Method, y = power, fill = as.factor(sample_size))) +
+    geom_bar(stat = "identity", position = "dodge"),
+  "Power"
+)
+
+type1_error_plot_1 <- simplify_plot(
+  ggplot(type1_error_results_1, aes(x = Method, y = type1_error, fill = as.factor(sample_size))) +
+    geom_bar(stat = "identity", position = "dodge") +
+    geom_hline(yintercept = 0.05, linetype = "dashed", color = "red"),
+  "Type-1 Error"
+)
+
+type1_error_plot_20 <- simplify_plot(
+  ggplot(type1_error_results_20, aes(x = Method, y = type1_error, fill = as.factor(sample_size))) +
+    geom_bar(stat = "identity", position = "dodge") +
+    geom_hline(yintercept = 0.05, linetype = "dashed", color = "red"),
+  "Type-1 Error"
+)
+
+# Extract legend
+extract_legend <- function(plot) {
+  g <- ggplotGrob(plot)
+  legend <- g$grobs[[which(sapply(g$grobs, function(x) x$name) == "guide-box")]]
+  return(legend)
+}
+
+legend <- extract_legend(power_plot_1)
+
+# Remove legend from individual plots
+power_plot_1 <- power_plot_1 + theme(legend.position = "none")
+power_plot_20 <- power_plot_20 + theme(legend.position = "none")
+type1_error_plot_1 <- type1_error_plot_1 + theme(legend.position = "none")
+type1_error_plot_20 <- type1_error_plot_20 + theme(legend.position = "none")
+
+# Create labels for the plots
+label_grobs <- list(
+  textGrob("(a)", x = unit(0.5, "npc"), y = unit(0.5, "npc"), just = "center", gp = gpar(fontsize = 10)),
+  textGrob("(b)", x = unit(0.5, "npc"), y = unit(0.5, "npc"), just = "center", gp = gpar(fontsize = 10)),
+  textGrob("(c)", x = unit(0.5, "npc"), y = unit(0.5, "npc"), just = "center", gp = gpar(fontsize = 10)),
+  textGrob("(d)", x = unit(0.5, "npc"), y = unit(0.5, "npc"), just = "center", gp = gpar(fontsize = 10))
+)
+
+# Combine plots with labels into a single layout
+combined_plot <- arrangeGrob(
+  grobs = list(
+    arrangeGrob(power_plot_1, bottom = label_grobs[[1]]),
+    arrangeGrob(power_plot_20, bottom = label_grobs[[2]]),
+    arrangeGrob(type1_error_plot_1, bottom = label_grobs[[3]]),
+    arrangeGrob(type1_error_plot_20, bottom = label_grobs[[4]])
+  ),
+  ncol = 2
+)
+
+final_plot <- grid.arrange(combined_plot, legend, ncol = 1, heights = c(10, 1))
+
+# Display the final plot
+print(final_plot)
+

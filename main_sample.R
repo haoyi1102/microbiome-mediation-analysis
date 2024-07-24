@@ -32,7 +32,7 @@ set.seed(1234)
 #mediation effect
 
 # read the results
-output_dir <- "simulation_data_sample"
+output_dir <- "simulation_data_sample_new"
 
 # List all .rds files in the directory
 rds_files <- list.files(output_dir, pattern = "*.rds", full.names = TRUE)
@@ -140,7 +140,7 @@ for (i in 1:length(preprocessed_data)) {
   # SparseMCMM
   sparsemcmm_time <- system.time({
     sparsemcmm_ome_p_value <- tryCatch({
-      res <- SparseMCMM(T_vector, M_nz_matrix, Y_vector, n.split = 1, num.per = 10)
+      res <- SparseMCMM(T_vector, M_nz_matrix, Y_vector, n.split = 1, num.per = 50)
       ress <- res$Test
       ress["OME"]
     }, error = function(e) {
@@ -239,8 +239,8 @@ for (i in 1:length(preprocessed_data)) {
     sparsemcmm_ome_p_value = sparsemcmm_ome_p_value,
     ldm_p_value = ldm_p_value,
     permanova_p_value = permanova_p_value,
-    microbvs_result = microbvs_result,
-    # MedZIM_pvalue = MedZIM_pvalue
+    microbvs_result = microbvs_result
+   
   )
 }
 
@@ -254,8 +254,7 @@ results_df <- do.call(rbind, lapply(results, function(x) {
     ldm_p_value = x$ldm_p_value,
     permanova_p_value = x$permanova_p_value,
     microbvs_result = x$microbvs_result
-    #,
-    # MedZIM_pvalue = x$MedZIM_pvalue
+    
     )
 }))
 
@@ -263,7 +262,7 @@ results_df <- do.call(rbind, lapply(results, function(x) {
 results_df <- as.data.frame(results_df)
 
 # Save the data frame to a CSV file
-write.csv(results_df, file = "mediation_analysis_results_sample.csv", row.names = FALSE)
+write.csv(results_df, file = "mediation_analysis_results_sample_new.csv", row.names = FALSE)
 
 print("Results have been saved")
 
@@ -271,7 +270,7 @@ print("Results have been saved")
 
 ##################  no mediation effect
 # read the results
-output_dir <- "simulation_data_sample_no_mediation"
+output_dir <- "simulation_data_sample_new_no_mediation"
 
 # List all .rds files in the directory
 rds_files <- list.files(output_dir, pattern = "*.rds", full.names = TRUE)
@@ -477,8 +476,8 @@ for (i in 1:length(preprocessed_data)) {
     sparsemcmm_ome_p_value = sparsemcmm_ome_p_value,
     ldm_p_value = ldm_p_value,
     permanova_p_value = permanova_p_value,
-    microbvs_result = microbvs_result,
-    # MedZIM_pvalue = MedZIM_pvalue
+    microbvs_result = microbvs_result
+    
   )
 }
 
@@ -491,7 +490,7 @@ results_df <- do.call(rbind, lapply(results, function(x) {
     sparsemcmm_ome_p_value = x$sparsemcmm_ome_p_value,
     ldm_p_value = x$ldm_p_value,
     permanova_p_value = x$permanova_p_value,
-    microbvs_result = x$microbvs_result,
+    microbvs_result = x$microbvs_result
     # MedZIM_pvalue = x$MedZIM_pvalue
     )
 }))
@@ -500,7 +499,7 @@ results_df <- do.call(rbind, lapply(results, function(x) {
 results_df <- as.data.frame(results_df)
 
 # Save the data frame to a CSV file
-write.csv(results_df, file = "mediation_analysis_results_no_mediation_effect__sample.csv", row.names = FALSE)
+write.csv(results_df, file = "mediation_analysis_results_new_no_mediation_effect_sample.csv", row.names = FALSE)
 
 print("Results have been saved")
 #####################################################################################3
@@ -511,10 +510,10 @@ library(reshape2)
 library(dplyr)
 
 # Read the saved CSV file
-results_df <- read.csv("mediation_analysis_results_sample.csv")
+results_df <- read.csv("mediation_analysis_results_sample_new.csv")
 #colnames(results_df)
 # Add sample size information
-results_df$sample_size <- rep(c(50, 100, 300), each = 20)
+results_df$sample_size <- rep(c(50, 100, 300), each = 10)
 
 # Replace missing values with 1 (acceptance)
 results_df[is.na(results_df)] <- 1
@@ -574,6 +573,74 @@ ggplot(power_results, aes(x = Method, y = power, fill = as.factor(sample_size)))
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_discrete(name = "Sample Size")
 
+# Load necessary libraries
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+# Read the saved CSV file
+results_df <- read.csv("mediation_analysis_results_sample.csv")
+#colnames(results_df)
+# Add sample size information
+results_df$sample_size <- rep(c(50, 100, 300), each = 20)
+
+# Replace missing values with 1 (acceptance)
+results_df[is.na(results_df)] <- 1
+
+# Rename methods for better readability
+results_long <- melt(results_df, id.vars = "sample_size", 
+                     measure.vars = c("modima_p_value", "medtest_p_value", 
+                                      "sparsemcmm_ome_p_value.OME", "ldm_p_value", 
+                                      "permanova_p_value"
+                                      # , "MedZIM_pvalue.pNIE"
+                     ),
+                     #MedZIM_pvalue
+                     variable.name = "Method", value.name = "p_value")
+
+results_long$Method <- recode(results_long$Method,
+                              "modima_p_value" = "MODIMA",
+                              "medtest_p_value" = "MedTest",
+                              "sparsemcmm_ome_p_value.OME" = "SparseMCMM",
+                              "ldm_p_value" = "LDM",
+                              "permanova_p_value" = "PERMANOVA"
+                              # ,
+                              # "MedZIM_pvalue.pNIE" = "MedZIM"
+)
+
+# Calculate power (p-value < 0.05)
+power_results <- results_long %>%
+  group_by(sample_size, Method) %>%
+  summarise(power = mean(p_value < 0.05, na.rm = TRUE))
+
+# Calculate rejection rate based on confidence intervals (reject if not containing 0)
+results_df <- results_df %>%
+  mutate(ccmm_reject = ifelse(ccmm_CI_lower > 0 | ccmm_CI_upper < 0, 1, 0),
+         microbvs_reject = ifelse(`microbvs_result.2.5.` > 0 | `microbvs_result.97.5.` < 0, 1, 0))
+
+# Add ccmm_reject and microbvs_reject to power_results
+ccmm_power_results <- results_df %>%
+  group_by(sample_size) %>%
+  summarise(Method = "CCMM", power = mean(ccmm_reject, na.rm = TRUE))
+
+microbvs_power_results <- results_df %>%
+  group_by(sample_size) %>%
+  summarise(Method = "MicroBVS", power = mean(microbvs_reject, na.rm = TRUE))
+
+# Combine all methods' power_results
+power_results <- bind_rows(power_results, ccmm_power_results, microbvs_power_results)
+
+# Replace zero power values with a small value
+power_results$power[power_results$power == 0] <- 0.001
+
+# Power plot
+ggplot(power_results, aes(x = Method, y = power, fill = as.factor(sample_size))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "Power Analysis",
+       x = "Method",
+       y = "Power") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_discrete(name = "Sample Size")
 ############### type-1 error
 # Load necessary libraries
 library(ggplot2)
@@ -581,10 +648,10 @@ library(reshape2)
 library(dplyr)
 
 # Read the saved CSV file for no mediation effect
-results_no_mediation_df <- read.csv("mediation_analysis_results_no_mediation_effect__sample.csv")
+results_no_mediation_df <- read.csv("mediation_analysis_results_new_no_mediation_effect_sample.csv")
 
 # Add sample size information
-results_no_mediation_df$sample_size <- rep(c(50, 100, 300), each = 20)
+results_no_mediation_df$sample_size <- rep(c(50, 100, 300), each = 10)
 
 # Replace missing values with 1 (acceptance)
 results_no_mediation_df[is.na(results_no_mediation_df)] <- 1
@@ -643,3 +710,74 @@ ggplot(type1_error_results, aes(x = Method, y = type1_error, fill = as.factor(sa
        y = "Type-1 Error") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_discrete(name = "Sample Size")
+##########
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+# Read the saved CSV file for no mediation effect
+results_no_mediation_df <- read.csv("mediation_analysis_results_no_mediation_effect__sample.csv")
+
+# Add sample size information
+results_no_mediation_df$sample_size <- rep(c(50, 100, 300), each = 20)
+
+# Replace missing values with 1 (acceptance)
+results_no_mediation_df[is.na(results_no_mediation_df)] <- 1
+
+# Rename methods for better readability
+results_no_mediation_long <- melt(results_no_mediation_df, id.vars = "sample_size", 
+                                  measure.vars = c("modima_p_value", "medtest_p_value", 
+                                                   "sparsemcmm_ome_p_value.OME", "ldm_p_value", 
+                                                   "permanova_p_value"
+                                                   # , "MedZIM_pvalue.pNIE"
+                                  ),
+                                  variable.name = "Method", value.name = "p_value")
+
+results_no_mediation_long$Method <- recode(results_no_mediation_long$Method,
+                                           "modima_p_value" = "MODIMA",
+                                           "medtest_p_value" = "MedTest",
+                                           "sparsemcmm_ome_p_value.OME" = "SparseMCMM",
+                                           "ldm_p_value" = "LDM",
+                                           "permanova_p_value" = "PERMANOVA"
+                                           # ,
+                                           # "MedZIM_pvalue.pNIE" = "MedZIM"
+)
+
+# Calculate Type-1 error (p-value < 0.05)
+type1_error_results <- results_no_mediation_long %>%
+  group_by(sample_size, Method) %>%
+  summarise(type1_error = mean(p_value < 0.05, na.rm = TRUE))
+
+# Calculate rejection rate based on confidence intervals (reject if not containing 0)
+results_no_mediation_df <- results_no_mediation_df %>%
+  mutate(ccmm_reject = ifelse(ccmm_CI_lower > 0 | ccmm_CI_upper < 0, 1, 0),
+         microbvs_reject = ifelse(`microbvs_result.2.5.` > 0 | `microbvs_result.97.5.` < 0, 1, 0))
+
+# Add ccmm_reject and microbvs_reject to type1_error_results
+ccmm_type1_error_results <- results_no_mediation_df %>%
+  group_by(sample_size) %>%
+  summarise(Method = "CCMM", type1_error = mean(ccmm_reject, na.rm = TRUE))
+
+microbvs_type1_error_results <- results_no_mediation_df %>%
+  group_by(sample_size) %>%
+  summarise(Method = "MicroBVS", type1_error = mean(microbvs_reject, na.rm = TRUE))
+
+# Combine all methods' type1_error_results
+type1_error_results <- bind_rows(type1_error_results, ccmm_type1_error_results, microbvs_type1_error_results)
+
+# Replace zero type1_error values with a small value
+type1_error_results$type1_error[type1_error_results$type1_error == 0] <- 0.001
+
+# Type-1 error plot with a horizontal line at 0.05
+ggplot(type1_error_results, aes(x = Method, y = type1_error, fill = as.factor(sample_size))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(title = "Type-1 Error Analysis",
+       x = "Method",
+       y = "Type-1 Error") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_discrete(name = "Sample Size")
+
+#########33
+
