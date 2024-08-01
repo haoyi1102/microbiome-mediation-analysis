@@ -10,7 +10,7 @@
 # ?control_fit
 # ?SparseDOSSA2
 
-generate_simulation_data <- function(n_sample = 100, template = "Stool", n_feature = 20, 
+generate_simulation_data <- function(n_sample = 100, template = template, n_feature = 20, 
                                      metadata_effect_size = 1, perc_feature_spiked_metadata = 0.1, 
                                      median_read_depth = 10000, alpha_0 = 1, alpha_T = 0.5, 
                                      alpha_M_value = 0.2, noise_sd = 0.1) {

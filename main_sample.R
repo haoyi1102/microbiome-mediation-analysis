@@ -95,14 +95,14 @@ preprocessed_results_by_sample <- lapply(split_results$n, preprocess_results)
 results <- list()
 
 preprocessed_data <- preprocessed_results_by_sample[["sample"]]
-#i=1
+#i=3
 for (i in 1:length(preprocessed_data)) {
   
   loop_start_time <- Sys.time()  # Start timing for the entire loop
   
   data_list <- preprocessed_data[i]
   data = data_list[[1]]
-  
+   # data$feature
   # Extract necessary vectors and matrices
   Y_vector <- as.vector(data$Y_vector)
   T_vector <- as.vector(data$T_vector)
@@ -151,9 +151,9 @@ for (i in 1:length(preprocessed_data)) {
   
   # LDM-MED
   ldm_time <- system.time({
-    data_ldm <- data.frame(Y = Y_vector, T = T_vector)
+    data_ldm <- data.frame(Y = Y_vector, T = T_vector,M_nz_matrix = M_nz_matrix)
     ldm_p_value <- tryCatch({
-      ldm_result <- ldm(
+     ldm_result <- ldm(
         formula = M_nz_matrix ~ T + Y,
         data = data_ldm,
         seed = 1234,
