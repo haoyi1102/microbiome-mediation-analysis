@@ -69,8 +69,9 @@ perc_feature_spiked_metadatas <- c(0.1, 0.2, 0.5)
 median_read_depths <- c(100, 1000, 10000)
 noise_sds <- c(0.5, 1, 3)
 
-# # Generate 100 datasets for each sample size and save the results
-# output_dir <- "simulation_data_sample"
+
+###########33333
+# output_dir <- "simulation_data_sample_new"
 # if (!dir.exists(output_dir)) {
 #   dir.create(output_dir)
 # }
@@ -78,9 +79,9 @@ noise_sds <- c(0.5, 1, 3)
 #   for (i in 1:20) {
 #     # Parameters defined within the loop
 #     n_feature <- 20
-#     metadata_effect_size <- 1
-#     perc_feature_spiked_metadata <- 0.1
-#     median_read_depth <- 10000
+#     metadata_effect_size <- 8
+#     perc_feature_spiked_metadata <- 0.2
+#     median_read_depth <- 100000
 #     noise_sd <- 0.5
 #     
 #     result <- generate_simulation_data(n_sample = n_sample, template = template, n_feature = n_feature, 
@@ -92,29 +93,6 @@ noise_sds <- c(0.5, 1, 3)
 # }
 # 
 # print("All results have been saved successfully.")
-###########33333
-output_dir <- "simulation_data_sample_new"
-if (!dir.exists(output_dir)) {
-  dir.create(output_dir)
-}
-for (n_sample in n_samples) {
-  for (i in 1:20) {
-    # Parameters defined within the loop
-    n_feature <- 20
-    metadata_effect_size <- 8
-    perc_feature_spiked_metadata <- 0.2
-    median_read_depth <- 100000
-    noise_sd <- 0.5
-    
-    result <- generate_simulation_data(n_sample = n_sample, template = template, n_feature = n_feature, 
-                                       metadata_effect_size = metadata_effect_size, perc_feature_spiked_metadata = perc_feature_spiked_metadata, 
-                                       median_read_depth = median_read_depth, alpha_0 = alpha_0, alpha_T = alpha_T, 
-                                       alpha_M_value = alpha_M_value, noise_sd = noise_sd)
-    save_result(result, "n_sample", n_sample, i)
-  }
-}
-
-print("All results have been saved successfully.")
 
 # no_mediation_effect
 output_dir <- "simulation_data_sample_new_no_mediation"
