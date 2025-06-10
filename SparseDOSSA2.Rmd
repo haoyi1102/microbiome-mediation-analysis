@@ -1,0 +1,158 @@
+---
+title: "main"
+author: "haoyi zheng"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+https://huttenhower.sph.harvard.edu/sparsedossa2/
+
+https://github.com/biobakery/biobakery/wiki/SparseDOSSA2
+```{r}
+rm(list = ls())
+devtools::install_github("biobakery/SparseDOSSA2")
+```
+# Simulating realistic microbial observations with SparseDOSSA2
+"Stool" : continuous population structures
+
+```{r}
+library(SparseDOSSA2)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+?fit_SparseDOSSA2
+? control_fit
+# Using the pre-trained dataset for "Stool"
+?SparseDOSSA2
+?spike
+Stool_simulation <- SparseDOSSA2(template = "Stool",  # choose from "Stool", "Vaginal" or "IBD"
+                                 new_features = TRUE,  # should new features be simulated
+                                 n_sample = 500,  # number of samples to simulate
+                                 n_feature = 100,  # number of features to simulate (when 'new_features = TRUE')
+                                 verbose = TRUE)  # return detailed info
+result = Stool_simulation$simulated_data
+#str(Stool_simulation)
+```
+
+```{r}
+sim <- SparseDOSSA2(template = "Stool", n_sample = 200, new_features = FALSE)
+## Using user-provided trained SparseDOSSA2 model:
+data("Stool_subset")
+fitted <- fit_SparseDOSSA(data = Stool_subset)
+sim <- SparseDOSSA2(template = fitted, n_sample = 200, new_features = FALSE)
+```
+
+
+simulated_data
+```{r}
+dim(Stool_simulation$simulated_data)
+head(Stool_simulation$simulated_data)
+```
+
+
+simulated_matrices:
+  rel: Relative Abundance
+  a_spiked：add spiked-in ;Absolute Abundance
+  a_null： null effect ;Absolute Abundance
+```{r}
+# view all matrices
+head(Stool_simulation$simulated_matrices)
+# Null (not spiked)
+head(Stool_simulation$simulated_matrices$a_null)
+# Spiked
+head(Stool_simulation$simulated_matrices$a_spiked)
+# Relative abundace
+head(Stool_simulation$simulated_matrices$rel)
+
+
+
+```
+
+params
+Returns the parameters used during the simulation. The parameters are provided to the 'template' argument of the 'SparseDOSSA2' function.
+```{r}
+head(Stool_simulation$params)
+```
+
+#  Simulating Realistic Microbial Observations using a User-supplied Template Dataset
+
+```{r}
+data("Stool_subset", package = "SparseDOSSA2")
+# columns are samples.
+Stool_subset[1:2, 1, drop = FALSE]
+
+fitted <- ?fit_SparseDOSSA2(data = Stool_subset,
+                           control = list(verbose = TRUE))
+# fitted absence probabilities for first two features in zero-inflated model 
+fitted$EM_fit$fit$pi0[1:2]
+
+Stool_subset_simulation <- ?SparseDOSSA2(template = fitted, 
+                                   n_sample = 10, 
+                                   new_features = FALSE,
+                                   verbose = TRUE)
+```
+
+The following is a simple example for simulating longitudinal data with SparseDOSSA 2, using the "Stool" fit.
+
+The spiking will be done with the following characteristics:
+
+Two microbes are spiked, in 50 subjects each with five time points.
+The spiked microbes are associated with a case-control variable, and each is associated with its own Gaussian "random effect" variable that's shared across time points within the same subject.
+
+```{r}
+feature_up <- 
+  "k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacteriales|f__Enterobacteriaceae|g__Escherichia|s__Escherichia_coli"
+feature_down <- 
+  "k__Bacteria|p__Firmicutes|c__Clostridia|o__Clostridiales|f__Ruminococcaceae|g__Faecalibacterium|s__Faecalibacterium_prausnitzii"
+
+n_s <- 10 # 50 subjects
+n_t <-  1# 5 time points
+
+
+```
+
+Now we generate the metadata matrix for spiking that defines which samples are associated with one or more spike scenario.
+
+In our case, is three columns:
+
+The first column is case-control variable.
+The other two are subject-specific random effects.
+
+```{r}
+mat_metadata <- data.frame(disease = c(rep(0, n_s * n_t/2), rep(1, n_s * n_t /2 )),
+                           subject_feature_1 = rep(rnorm(n = n_s), each = n_t),
+                           subject_feature_2 = rep(rnorm(n = n_s), each = n_t))
+head(mat_metadata)
+head(spike_in_setup)
+df_metadata_spike <- spike_in_setup %>% tidyr::crossing(associated_property = c("prevalence", "abundance"))
+head(df_metadata_spike, n = 20)
+
+
+
+set.seed(49)
+sim <- SparseDOSSA2::SparseDOSSA2(
+    template = "Stool",
+    n_sample = nrow(mat_metadata), 
+    new_features = FALSE,
+    spike_metadata = "both",
+    metadata_matrix = as.matrix(mat_metadata), 
+    
+    verbose = FALSE)
+
+spiked_mat <- sim$simulated_data
+spiked_up <- data.frame(sample = colnames(spiked_mat),
+                          values = spiked_mat[which(rownames(spiked_mat) == feature_up),],
+                          disease = ifelse(mat_metadata$disease == 0, "control", "case"))
+
+p <- ggplot(spiked_up, aes(x = sample, y = values, color = disease))
+p <- p + geom_point() + theme_classic() + coord_flip()
+p
+
+```
+
+
+
